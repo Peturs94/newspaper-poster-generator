@@ -1,6 +1,5 @@
 import pytesseract
 from pdf2image import convert_from_path
-from PIL import Image
 import re
 import json
 
@@ -10,7 +9,6 @@ import json
 MIN_TITLE_FONT_HEIGHT = 18   # OCR bounding box height threshold
 MAX_TITLE_LENGTH = 60        # short lines considered titles
 CONFIDENCE_THRESHOLD = 60    # ignore garbage OCR
-DEBUG = False
 
 
 def looks_like_title(text):
@@ -82,6 +80,7 @@ def group_into_lines(boxes, y_threshold=10):
             lines.append(current_line)
             current_line = [box]
             last_y = box["top"]
+
 
     if current_line:
         lines.append(current_line)
