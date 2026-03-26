@@ -2,64 +2,34 @@ import fitz
 import json
 
 # Tuned for old Icelandic newspaper OCR
-TITLE_FONT_MIN = 16
-SUBTITLE_FONT_MIN = 13
+TITLE_FONT_MIN = 12
+SUBTITLE_FONT_MIN = 11
 
 
-def extract_blocks(pdf_path):
-    """Extract all text spans with font and position."""
+def extract_lines(pdf_path):
+    """Extract text lines with font size, using PyMuPDF's native block/line structure
+    to preserve column boundaries."""
     doc = fitz.open(pdf_path)
-    all_spans = []
+    all_lines = []
 
     for page in doc:
         blocks = page.get_text("dict")["blocks"]
+        # Sort blocks top-to-bottom, left-to-right so reading order is sensible
+        blocks = sorted(blocks, key=lambda b: (round(b["bbox"][1] / 20), b["bbox"][0]))
         for block in blocks:
             for line in block.get("lines", []):
-                for span in line.get("spans", []):
-                    all_spans.append({
-                        "text": span["text"].strip(),
-                        "size": span["size"],
-                        "font": span["font"],
-                        "bbox": span["bbox"]
-                    })
-    return all_spans
+                spans = line.get("spans", [])
+                text = " ".join(s["text"].strip() for s in spans if s["text"].strip())
+                if not text:
+                    continue
+                max_size = max(s["size"] for s in spans if s["text"].strip())
+                all_lines.append({"text": text, "size": max_size})
 
-
-def group_lines(spans, y_threshold=8):
-    """Group spans into lines based on Y coordinate."""
-    spans = sorted(spans, key=lambda s: s["bbox"][1])
-
-    lines = []
-    current = []
-    last_y = None
-
-    for s in spans:
-        y = s["bbox"][1]
-
-        if last_y is None or abs(y - last_y) <= y_threshold:
-            current.append(s)
-        else:
-            lines.append(current)
-            current = [s]
-
-        last_y = y
-
-    if current:
-        lines.append(current)
-
-    # Combine spans per line
-    combined_lines = []
-    for line in lines:
-        text = " ".join(s["text"] for s in line).strip()
-        max_size = max(s["size"] for s in line)
-        avg_y = sum(s["bbox"][1] for s in line) / len(line)
-        combined_lines.append({"text": text, "size": max_size, "y": avg_y})
-
-    return combined_lines
+    return all_lines
 
 
 def detect_articles(lines):
-    """Article detection: Title → optional subtitle → body text."""
+    """Article detection: Title -> optional subtitle -> body text."""
     articles = []
     current_title = None
     current_sub = None
@@ -71,7 +41,6 @@ def detect_articles(lines):
 
         # TITLE
         if size >= TITLE_FONT_MIN and len(text) < 80:
-            # Save previous article if exists
             if current_title:
                 articles.append({
                     "title": current_title,
@@ -106,8 +75,7 @@ def detect_articles(lines):
 
 
 def process_pdf(pdf_path, out_path="output.json"):
-    spans = extract_blocks(pdf_path)
-    lines = group_lines(spans)
+    lines = extract_lines(pdf_path)
     articles = detect_articles(lines)
 
     with open(out_path, "w", encoding="utf-8") as f:
