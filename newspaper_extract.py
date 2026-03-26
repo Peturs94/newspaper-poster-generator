@@ -27,6 +27,8 @@ def extract_blocks(pdf_path):
 
 def group_lines(spans, y_threshold=8):
     """Group spans into lines based on Y coordinate."""
+    spans = sorted(spans, key=lambda s: s["bbox"][1])
+
     lines = []
     current = []
     last_y = None
@@ -73,8 +75,8 @@ def detect_articles(lines):
             if current_title:
                 articles.append({
                     "title": current_title,
-                    "body": current_sub or "",
-                    "text": "\n".join(body_lines).strip()
+                    "subtitle": current_sub or "",
+                    "body": "\n".join(body_lines).strip()
                 })
                 body_lines = []
 
@@ -96,8 +98,8 @@ def detect_articles(lines):
     if current_title:
         articles.append({
             "title": current_title,
-            "body": current_sub or "",
-            "text": "\n".join(body_lines).strip()
+            "subtitle": current_sub or "",
+            "body": "\n".join(body_lines).strip()
         })
 
     return articles
